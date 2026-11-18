@@ -22,6 +22,17 @@ jobs:
       - name: Установить зависимости
         run: npm ci
 
+      - name: Запустить сервер для API-тестов
+        run: |
+          npm run dev > /tmp/monitor-server.log 2>&1 &
+          for i in {1..30}; do
+            if curl --silent --fail http://127.0.0.1:3000/ > /dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl --silent --fail http://127.0.0.1:3000/ > /dev/null
+
       - name: Проверить тесты
         run: npm test
 
