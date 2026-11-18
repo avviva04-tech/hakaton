@@ -1,0 +1,128 @@
+[
+  {
+    "path": "01_Червоний_рівень/Пояснення_прострочення.pdf",
+    "expectation": "Прийняти",
+    "bytes": 28313,
+    "detected": "pdf",
+    "sha256": "1f38bde52967aff5636777018a4d9e0e21cee39af191d649a1d2f6b68dc69f2d"
+  },
+  {
+    "path": "02_Жовтий_рівень/Оновлений_план.pdf",
+    "expectation": "Прийняти",
+    "bytes": 28330,
+    "detected": "pdf",
+    "sha256": "d2ac59d04ad9c4e4eb84c6f1ac1b020ed13378b6a3ff6cbe1ca2d031e642ecfc"
+  },
+  {
+    "path": "03_Успішне_виконання/Акт_виконання.pdf",
+    "expectation": "Прийняти",
+    "bytes": 28714,
+    "detected": "pdf",
+    "sha256": "e00d5bdcb17173fc3aa6fda44c09a19599d08a47a4873bf217483611b43b59e1"
+  },
+  {
+    "path": "04_Погодження/Матеріали_на_погодження.pdf",
+    "expectation": "Прийняти",
+    "bytes": 27458,
+    "detected": "pdf",
+    "sha256": "89eb9d1c14fe8c6a0d214b415bba424d86994bbfb29822e9fa758b8e97019d6f"
+  },
+  {
+    "path": "05_Ризик_не_зменшився/Формально_виконаний_захід.pdf",
+    "expectation": "Прийняти",
+    "bytes": 27601,
+    "detected": "pdf",
+    "sha256": "80b2ff4fcef13a1421828ce862424b197d8f135f3f22ebf5b5b9e946a3f12f74"
+  },
+  {
+    "path": "06_Формати_документів/Звичайний_документ.pdf",
+    "expectation": "Прийняти",
+    "bytes": 28639,
+    "detected": "pdf",
+    "sha256": "728ea2f5e4b5d44c350347bf4812ba8421bef74d6e7d0ebb2cbb3148660a455c"
+  },
+  {
+    "path": "07_Версії/Версія_1/Протокол_перевірки.pdf",
+    "expectation": "Прийняти",
+    "bytes": 26849,
+    "detected": "pdf",
+    "sha256": "c6f193921a6c230e688f570bdc6af47b63621f6389c057abd5e0ffcf9df819eb"
+  },
+  {
+    "path": "07_Версії/Версія_2/Протокол_перевірки.pdf",
+    "expectation": "Прийняти",
+    "bytes": 27063,
+    "detected": "pdf",
+    "sha256": "b034164966e6242cff6becd500bb698c2fb9f4f2961f8bd84d292afeea81e358"
+  },
+  {
+    "path": "06_Формати_документів/Дані_для_перевірки.xlsx",
+    "expectation": "Прийняти",
+    "bytes": 7618,
+    "detected": "xlsx",
+    "sha256": "2c45e0fe25568920b337bdca3662f98b711d9a1b19835c3ada2aa2ef4d95949c"
+  },
+  {
+    "path": "Дані_заходів.csv",
+    "expectation": "Довідник для ручного введення; не імпортується і не завантажується як підтвердження",
+    "bytes": 1831,
+    "detected": "не визначено",
+    "sha256": "e76caf878c336fff346b47ce882d875dccad92985c451cec1596e32aa5ee48b5"
+  },
+  {
+    "path": "06_Формати_документів/Протокол_комісії.docx",
+    "expectation": "Прийняти",
+    "bytes": 1196,
+    "detected": "docx",
+    "sha256": "4d100afe12864fedbac6c6da8f5ca23f49a66e1f775b561638ab05081c61e0f0"
+  },
+  {
+    "path": "08_Помилкові_файли/Текст_під_виглядом_PDF.pdf",
+    "expectation": "Відхилити: невідповідний вміст",
+    "bytes": 91,
+    "detected": "не визначено",
+    "sha256": "a674a38c494ad82a2f9c40717d71bdbaa183df501e79b3e3e8f510a5524b468f"
+  },
+  {
+    "path": "08_Помилкові_файли/Порожній_документ.pdf",
+    "expectation": "Відхилити: порожній файл",
+    "bytes": 0,
+    "detected": "не визначено",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "08_Помилкові_файли/Недозволений_формат.txt",
+    "expectation": "Відхилити: недозволений формат",
+    "bytes": 142,
+    "detected": "не визначено",
+    "sha256": "b5bf26c6747de4c49ace3f44307dbe521017b46507b6c0facc6915ba4c42e009"
+  },
+  {
+    "path": "08_Помилкові_файли/Понад_ліміт_11МБ.pdf",
+    "expectation": "Відхилити: понад 10 МБ",
+    "bytes": 11534336,
+    "detected": "pdf",
+    "sha256": "812ac86de15bff6e23b2bec0dc27b4c8312e9c49745b5ed717fdfbe68f7fccb7"
+  },
+  {
+    "path": "08_Помилкові_файли/PDF_з_розширенням_JPG.jpg",
+    "expectation": "Відхилити: PDF-вміст із розширенням JPG",
+    "bytes": 28639,
+    "detected": "pdf",
+    "sha256": "728ea2f5e4b5d44c350347bf4812ba8421bef74d6e7d0ebb2cbb3148660a455c"
+  },
+  {
+    "path": "06_Формати_документів/Фото_підтвердження.png",
+    "expectation": "Прийняти",
+    "bytes": 10540,
+    "detected": "png",
+    "sha256": "6a6d8849ef6289f65f42b0d4183402629257da81ae0321555dc561d3b8457d8b"
+  },
+  {
+    "path": "06_Формати_документів/Фото_підтвердження.jpg",
+    "expectation": "Прийняти",
+    "bytes": 24489,
+    "detected": "jpg",
+    "sha256": "777015279c1c19c1ec9e27ce8a1aaa528caeb6d671ff9316d2e676c2b1086ea5"
+  }
+]

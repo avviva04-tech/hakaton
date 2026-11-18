@@ -1,0 +1,172 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "sqlite"
+  url = env("DATABASE_URL")
+}
+model User {
+  id String @id @default(cuid())
+  email String @unique
+  name String
+  passwordHash String
+  role String
+  department String
+  active Boolean @default(true)
+  activities Activity[]
+  sessions Session[]
+}
+model Session {
+  id String @id
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+}
+model Program {
+  id String @id @default(cuid())
+  name String
+  description String
+  year Int
+  archived Boolean @default(false)
+  activities Activity[]
+  risks Risk[]
+}
+model Activity {
+  id String @id @default(cuid())
+  code String @unique
+  title String
+  description String
+  section String
+  department String
+  executorId String
+  executor User @relation(fields: [executorId], references: [id])
+  programId String
+  program Program @relation(fields: [programId], references: [id])
+  riskId String
+  risk Risk @relation(fields: [riskId], references: [id])
+  startDate DateTime
+  deadline DateTime
+  status String @default("NOT_STARTED")
+  indicator String
+  baseline Float
+  target Float
+  current Float?
+  result String @default("")
+  actualDate DateTime?
+  evidenceRequired String @default("Документ, що підтверджує результат")
+  continuous Boolean @default(false)
+  archived Boolean @default(false)
+  deadlineChanges Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  evidence Evidence[]
+  comments Comment[]
+  flags RiskFlag[]
+  recommendations Recommendation[]
+  notifications Notification[]
+}
+model Risk {
+  id String @id @default(cuid())
+  code String @unique
+  title String
+  description String
+  causes String
+  consequences String
+  baseline Float
+  current Float
+  target Float
+  direction String @default("DOWN")
+  indicator String
+  assessedAt DateTime
+  programId String
+  program Program @relation(fields: [programId], references: [id])
+  activities Activity[]
+  measurements RiskMeasurement[]
+}
+model RiskMeasurement {
+  id String @id @default(cuid())
+  riskId String
+  risk Risk @relation(fields: [riskId], references: [id], onDelete: Cascade)
+  value Float
+  note String
+  author String
+  date DateTime @default(now())
+}
+model Evidence {
+  id String @id @default(cuid())
+  activityId String
+  activity Activity @relation(fields: [activityId], references: [id])
+  name String
+  storagePath String
+  mime String
+  size Int
+  sha256 String
+  author String
+  version Int
+  createdAt DateTime @default(now())
+  @@unique([activityId, name, version])
+}
+model Comment {
+  id String @id @default(cuid())
+  activityId String
+  activity Activity @relation(fields: [activityId], references: [id])
+  text String
+  author String
+  createdAt DateTime @default(now())
+}
+model RiskFlag {
+  id String @id @default(cuid())
+  activityId String
+  activity Activity @relation(fields: [activityId], references: [id])
+  rule String
+  title String
+  reason String
+  action String
+  priority String
+  status String @default("OPEN")
+  active Boolean @default(true)
+  detectedAt DateTime @default(now())
+  @@unique([activityId, rule])
+}
+model Recommendation {
+  id String @id @default(cuid())
+  activityId String
+  activity Activity @relation(fields: [activityId], references: [id])
+  rule String
+  problem String
+  basis String
+  action String
+  priority String
+  responsible String
+  deadline DateTime
+  status String @default("PENDING")
+  active Boolean @default(true)
+  createdAt DateTime @default(now())
+  @@unique([activityId, rule])
+}
+model Notification {
+  id String @id @default(cuid())
+  activityId String
+  activity Activity @relation(fields: [activityId], references: [id])
+  userId String
+  kind String
+  message String
+  read Boolean @default(false)
+  active Boolean @default(true)
+  createdAt DateTime @default(now())
+  @@unique([activityId, userId, kind])
+}
+model AuditLog {
+  id String @id @default(cuid())
+  userId String
+  userName String
+  action String
+  objectId String
+  before String
+  after String
+  createdAt DateTime @default(now())
+}
+model Setting {
+  key String @id
+  value String
+}

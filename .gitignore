@@ -1,0 +1,8 @@
+node_modules/
+.tools/
+.env
+dist/
+prisma/*.db*
+storage/
+test-results/
+*.log

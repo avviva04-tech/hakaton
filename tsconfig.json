@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "target": "ES2023", "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext", "moduleResolution": "bundler", "jsx": "react-jsx",
+    "strict": true, "skipLibCheck": true, "esModuleInterop": true,
+    "allowImportingTsExtensions": true, "resolveJsonModule": true,
+    "erasableSyntaxOnly": true, "noEmit": true, "types": ["node", "vite/client"]
+  },
+  "include": ["client", "server", "shared", "prisma", "tests", "vite.config.ts"]
+}
