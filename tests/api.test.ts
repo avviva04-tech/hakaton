@@ -176,7 +176,7 @@ test('Наскрізний цикл: авторизація, права, зах�
       (
         await request(`/activities/${a.id}/progress`, coordinator, 'POST', {
           ...progress,
-          status: 'COMPLETED',
+          status: 'MANAGER_REVIEW',
         })
       ).status,
       400,
@@ -212,11 +212,49 @@ test('Наскрізний цикл: авторизація, права, зах�
       (
         await request(`/activities/${a.id}/progress`, coordinator, 'POST', {
           ...progress,
-          status: 'COMPLETED',
+          status: 'MANAGER_REVIEW',
         })
       ).status,
       200,
     );
+    const decide = (status: string, comment: string, cookie = manager) =>
+      request(`/activities/${a.id}/progress`, cookie, 'POST', { ...progress, status, comment });
+    assert.equal((await decide('COMPLETED', 'Спроба координатора', coordinator)).status, 403);
+    assert.equal((await decide('COMPLETED', '')).status, 400);
+    assert.equal(
+      (
+        await request(`/activities/${a.id}/progress`, manager, 'POST', {
+          ...progress,
+          result: 'Підмінено',
+          status: 'COMPLETED',
+        })
+      ).status,
+      403,
+    );
+    const lockedFile = new FormData();
+    lockedFile.set('activityId', a.id);
+    lockedFile.set('file', new Blob([png], { type: 'image/png' }), 'locked.png');
+    assert.equal((await request('/evidence', executor, 'POST', lockedFile)).status, 409);
+    assert.equal((await decide('REVISION', 'Додайте пояснення до результату.')).status, 200);
+    assert.equal((await decide('COMPLETED', 'Передчасне рішення')).status, 403);
+    assert.equal(
+      (await request(`/activities/${a.id}/progress`, executor, 'POST', progress)).status,
+      200,
+    );
+    assert.equal(
+      (
+        await request(`/activities/${a.id}/progress`, coordinator, 'POST', {
+          ...progress,
+          status: 'MANAGER_REVIEW',
+        })
+      ).status,
+      200,
+    );
+    assert.equal(
+      (await decide('COMPLETED', 'Матеріали перевірено, результат схвалено.')).status,
+      200,
+    );
+    assert.equal((await decide('COMPLETED', 'Повторне рішення')).status, 403);
     const after = await (await request('/dashboard?programId=program-demo', coordinator)).json();
     assert.equal(after.total, before.total + 1);
     assert.equal(after.completed, before.completed + 1);
@@ -250,7 +288,8 @@ test('Наскрізний цикл: авторизація, права, зах�
     );
     const audit = await (await request(`/audit?objectId=${a.id}`, coordinator)).json();
     assert.ok(audit.length >= 6);
-    assert.ok(audit.some((x: { action: string }) => x.action === 'Погоджено виконання'));
+    assert.ok(audit.some((x: { action: string }) => x.action === 'Схвалено керівником'));
+    assert.ok(audit.some((x: { action: string }) => x.action === 'Не схвалено керівником'));
     const y = new Date().getFullYear(),
       half = new Date().getMonth() < 6 ? 1 : 2;
     for (const format of ['json', 'csv', 'xlsx', 'pdf']) {
@@ -260,6 +299,13 @@ test('Наскрізний цикл: авторизація, права, зах�
       );
       assert.equal(response.status, 200, `Формат ${format}`);
       const buffer = Buffer.from(await response.arrayBuffer());
+      if (format === 'json') {
+        const row = JSON.parse(buffer.toString()).find(
+          (row: { code: string }) => row.code === a.code,
+        );
+        assert.match(row.managerDecisions, /Не схвалено керівником/);
+        assert.match(row.managerDecisions, /Матеріали перевірено, результат схвалено/);
+      }
       assert.ok(buffer.length > 100);
       if (format === 'pdf') assert.equal(buffer.subarray(0, 4).toString(), '%PDF');
       if (format === 'xlsx') assert.equal(buffer.subarray(0, 2).toString(), 'PK');

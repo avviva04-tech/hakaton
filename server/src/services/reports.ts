@@ -1,21 +1,37 @@
 import { displayStatus } from '../../../shared/dates.ts';
-import type { Activity } from '@prisma/client';
+import type { Activity, AuditLog } from '@prisma/client';
 import { statuses, sections } from '../../../shared/domain.ts';
 export function reportRows(
   items: (Activity & { executor: { name: string } })[],
   year: number,
   half: number,
+  decisions: AuditLog[] = [],
 ) {
   const start = new Date(Date.UTC(year, half === 1 ? 0 : 6, 1));
   const end = new Date(Date.UTC(year, half === 1 ? 6 : 12, 0, 23, 59, 59, 999));
   return items
-    .filter((a) => a.createdAt <= end && (a.continuous || !a.actualDate || a.actualDate >= start))
+    .filter(
+      (a) =>
+        a.createdAt <= end &&
+        (a.continuous ||
+          !a.actualDate ||
+          a.actualDate >= start ||
+          decisions.some((d) => d.objectId === a.id && d.createdAt >= start && d.createdAt <= end)),
+    )
     .map((a) => ({
       section: a.section,
       sectionName: sections[a.section as keyof typeof sections],
       code: a.code,
       title: a.title,
       executor: a.executor.name,
+      managerDecisions:
+        decisions
+          .filter((d) => d.objectId === a.id && d.createdAt >= start && d.createdAt <= end)
+          .map(
+            (d) =>
+              `${d.action} · ${d.userName} · ${d.createdAt.toLocaleString('uk-UA', { timeZone: 'Europe/Kyiv' })}\n${JSON.parse(d.after).decisionNote || 'Без пояснення'}`,
+          )
+          .join('\n\n') || 'Рішень керівника за період немає.',
       actualDate: a.continuous
         ? end.toISOString().slice(0, 10)
         : a.actualDate && a.actualDate <= end
@@ -41,9 +57,19 @@ export const reportHeaders = [
   'Фактичний строк виконання',
   'Стан виконання',
   'Опис результату або причини невиконання',
+  'Рішення керівника за період: автор, дата, обґрунтування',
 ];
 export function cells(row: ReturnType<typeof reportRows>[number]) {
-  return [row.section, row.code, row.title, row.executor, row.actualDate, row.status, row.result];
+  return [
+    row.section,
+    row.code,
+    row.title,
+    row.executor,
+    row.actualDate,
+    row.status,
+    row.result,
+    row.managerDecisions,
+  ];
 }
 export function csvCell(value: string) {
   const safe = /^[=+@\-\t\r]/.test(value) ? `'${value}` : value;

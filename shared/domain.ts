@@ -9,6 +9,7 @@ export const statuses = {
   NOT_STARTED: 'Не розпочато',
   IN_PROGRESS: 'У процесі',
   REVIEW: 'На погодженні',
+  MANAGER_REVIEW: 'На розгляді керівника',
   COMPLETED: 'Виконано',
   OVERDUE: 'Прострочено',
   REVISION: 'Потребує доопрацювання',
@@ -44,8 +45,11 @@ export const transitions: Record<string, Record<string, readonly string[]>> = {
   COORDINATOR: {
     NOT_STARTED: ['IN_PROGRESS'],
     IN_PROGRESS: ['NOT_STARTED'],
-    REVIEW: ['COMPLETED', 'REVISION'],
+    REVIEW: ['MANAGER_REVIEW', 'REVISION'],
     COMPLETED: ['REVISION'],
+  },
+  MANAGER: {
+    MANAGER_REVIEW: ['COMPLETED', 'REVISION'],
   },
 };
 
@@ -55,7 +59,7 @@ export function canTransition(role: string, from: string, to: string): boolean {
   if (from === to) {
     return effectiveRole === 'EXECUTOR'
       ? ['NOT_STARTED', 'IN_PROGRESS', 'REVISION'].includes(from)
-      : effectiveRole === 'COORDINATOR' && from !== 'COMPLETED';
+      : effectiveRole === 'COORDINATOR' && !['COMPLETED', 'MANAGER_REVIEW'].includes(from);
   }
   return transitions[effectiveRole]?.[from]?.includes(to) ?? false;
 }

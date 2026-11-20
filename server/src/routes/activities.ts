@@ -126,6 +126,8 @@ activitiesRouter.patch('/activities/:id', permit('ADMIN', 'COORDINATOR'), async 
   await validateRelations(data);
   const before = await db.activity.findUniqueOrThrow({ where: { id: id(req.params.id) } });
   if (before.archived) return fail(400, 'Спочатку відновіть захід з архіву.');
+  if (['MANAGER_REVIEW', 'COMPLETED'].includes(before.status))
+    return fail(409, 'Спочатку поверніть результат на доопрацювання.');
   const a = await db.activity.update({
     where: { id: before.id },
     data: {
@@ -167,28 +169,30 @@ activitiesRouter.post('/activities/:id/progress', async (req, res) => {
     })
     .parse(req.body);
   const before = await db.activity.findUniqueOrThrow({ where: { id: id(req.params.id) } });
-  if (!canEdit(req, before)) return fail(403, 'Немає прав на оновлення цього заходу.');
+  if (!canEdit(req, before) && req.user.role !== 'MANAGER')
+    return fail(403, 'Немає прав на оновлення цього заходу.');
   if (before.archived) return fail(400, 'Архівний захід не можна змінювати.');
   if (!canTransition(req.user.role, before.status, data.status))
     return fail(403, 'Цей перехід статусу недоступний для вашої ролі.');
   if (
-    req.user.role === 'EXECUTOR' &&
-    before.status === 'REVIEW' &&
+    ((req.user.role === 'EXECUTOR' && before.status === 'REVIEW') || req.user.role === 'MANAGER') &&
     (data.result !== before.result ||
       data.current !== before.current ||
       (data.actualDate ? dayKey(data.actualDate) : null) !==
         (before.actualDate ? dayKey(before.actualDate) : null))
   )
     return fail(403, 'Спочатку відкличте результат з погодження без зміни його даних.');
+  if (req.user.role === 'MANAGER' && !data.comment?.trim())
+    return fail(400, 'Додайте обґрунтування рішення керівника для звіту.');
   if (before.status === 'COMPLETED' && data.status === 'REVISION' && !data.comment?.trim())
     return fail(400, 'Поясніть причину повернення виконаного заходу на доопрацювання.');
   if (
-    data.status === 'COMPLETED' &&
+    ['COMPLETED', 'MANAGER_REVIEW'].includes(data.status) &&
     !(await db.evidence.count({ where: { activityId: before.id } }))
   )
     return fail(400, 'Для погодження завантажте хоча б один підтвердний документ.');
   if (
-    ['COMPLETED', 'REVIEW'].includes(data.status) &&
+    ['COMPLETED', 'REVIEW', 'MANAGER_REVIEW'].includes(data.status) &&
     (!data.result.trim() || data.current === null || !data.actualDate)
   )
     return fail(400, 'Вкажіть результат, значення індикатора та фактичну дату.');
@@ -205,20 +209,30 @@ activitiesRouter.post('/activities/:id/progress', async (req, res) => {
     });
     if (before.status !== data.status) {
       await tx.notification.updateMany({
-        where: { activityId: before.id, kind: { in: ['REVIEW', 'REVISION'] } },
+        where: {
+          activityId: before.id,
+          kind: { in: ['REVIEW', 'REVISION', 'MANAGER_REVIEW', 'COMPLETED'] },
+        },
         data: { active: false },
       });
     }
-    if (before.status !== data.status && ['REVIEW', 'REVISION'].includes(data.status)) {
-      const recipients =
-        data.status === 'REVIEW'
-          ? await tx.user.findMany({
-              where: { active: true, role: { in: ['ADMIN', 'COORDINATOR'] } },
-              select: { id: true },
-            })
-          : [{ id: before.executorId }];
+    if (
+      before.status !== data.status &&
+      ['REVIEW', 'REVISION', 'MANAGER_REVIEW', 'COMPLETED'].includes(data.status)
+    ) {
+      const recipients = ['REVIEW', 'MANAGER_REVIEW'].includes(data.status)
+        ? await tx.user.findMany({
+            where: {
+              active: true,
+              role: {
+                in: data.status === 'MANAGER_REVIEW' ? ['MANAGER'] : ['ADMIN', 'COORDINATOR'],
+              },
+            },
+            select: { id: true },
+          })
+        : [{ id: before.executorId }];
       for (const recipient of recipients) {
-        const message = `${before.code}: ${data.status === 'REVIEW' ? 'подано на погодження' : 'повернуто на доопрацювання'}`;
+        const message = `${before.code}: ${statuses[data.status]}`;
         await tx.notification.upsert({
           where: {
             activityId_userId_kind: {
@@ -241,14 +255,24 @@ activitiesRouter.post('/activities/:id/progress', async (req, res) => {
         userId: req.user.id,
         userName: req.user.name,
         action:
-          data.status === 'COMPLETED'
-            ? 'Погоджено виконання'
-            : data.status === 'REVISION'
-              ? 'Повернуто на доопрацювання'
-              : 'Оновлено виконання',
+          req.user.role === 'MANAGER'
+            ? data.status === 'COMPLETED'
+              ? 'Схвалено керівником'
+              : 'Не схвалено керівником'
+            : data.status === 'MANAGER_REVIEW'
+              ? 'Передано на розгляд керівника'
+              : data.status === 'COMPLETED'
+                ? 'Погоджено виконання'
+                : data.status === 'REVISION'
+                  ? 'Повернуто на доопрацювання'
+                  : 'Оновлено виконання',
         objectId: item.id,
         before: JSON.stringify(before),
-        after: JSON.stringify(item),
+        after: JSON.stringify({
+          ...item,
+          decisionNote: comment?.trim() || '',
+          decisionRole: req.user.role,
+        }),
       },
     });
     return item;

@@ -24,14 +24,28 @@ reportsRouter.get(
         format: z.enum(['json', 'csv', 'xlsx', 'pdf']).default('json'),
       })
       .parse(req.query);
+    const decisions = await db.auditLog.findMany({
+      where: {
+        action: { in: ['Схвалено керівником', 'Не схвалено керівником'] },
+        createdAt: {
+          gte: new Date(Date.UTC(q.year, q.half === 1 ? 0 : 6, 1)),
+          lt: new Date(Date.UTC(q.year, q.half === 1 ? 6 : 12, 1)),
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
     const rows = reportRows(
       await db.activity.findMany({
-        where: { programId: q.programId, archived: false },
+        where: {
+          programId: q.programId,
+          OR: [{ archived: false }, { id: { in: decisions.map((d) => d.objectId) } }],
+        },
         include: { executor: true },
         orderBy: [{ section: 'asc' }, { code: 'asc' }],
       }),
       q.year,
       q.half,
+      decisions,
     );
     if (q.format === 'json') {
       res.json(rows);
@@ -112,7 +126,7 @@ reportsRouter.get(
           .text(`${row.code}. ${row.title}`)
           .fontSize(9)
           .text(
-            `Виконавець: ${row.executor}\nФактичний строк: ${row.actualDate}\nСтан: ${row.status}\n${row.result}`,
+            `Виконавець: ${row.executor}\nФактичний строк: ${row.actualDate}\nСтан: ${row.status}\n${row.result}\nРішення керівника:\n${row.managerDecisions}`,
           )
           .moveDown();
       }

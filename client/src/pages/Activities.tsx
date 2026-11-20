@@ -501,6 +501,8 @@ export function ActivityDetail() {
   const a = result.data;
   const manager = ['ADMIN', 'COORDINATOR'].includes(user.role);
   const canEdit = manager || (user.role === 'EXECUTOR' && a.executorId === user.id);
+  const canDecide = user.role === 'MANAGER' && a.status === 'MANAGER_REVIEW';
+  const frozen = ['MANAGER_REVIEW', 'COMPLETED'].includes(a.status);
   return (
     <>
       <Link className="back-link" to="/activities">
@@ -513,7 +515,11 @@ export function ActivityDetail() {
         action={
           manager && (
             <div className="actions">
-              <button className="secondary" onClick={() => setEditing(true)} disabled={a.archived}>
+              <button
+                className="secondary"
+                onClick={() => setEditing(true)}
+                disabled={a.archived || frozen}
+              >
                 <Pencil size={16} />
                 Редагувати
               </button>
@@ -531,11 +537,13 @@ export function ActivityDetail() {
         <span>Виконавець: {a.executor.name}</span>
         <span>Строк: {date(a.deadline)}</span>
       </div>
-      {canEdit && !a.archived && (
+      {(canEdit || canDecide) && !a.archived && (
         <button className="secondary" onClick={() => setTab('Виконання')}>
-          {manager && a.status === 'REVIEW'
-            ? 'Перевірити та погодити результат'
-            : 'Оновити виконання'}
+          {canDecide
+            ? 'Ухвалити рішення'
+            : manager && a.status === 'REVIEW'
+              ? 'Перевірити та погодити результат'
+              : 'Оновити виконання'}
         </button>
       )}
       <div className="tabs">
@@ -582,7 +590,7 @@ export function ActivityDetail() {
                 <strong>Факт виконання</strong>
                 <p>
                   {a.status === 'COMPLETED'
-                    ? 'Виконання погоджено координатором'
+                    ? 'Виконання завершено. Рішення керівника — в історії нижче.'
                     : 'Виконання ще не погоджено'}
                 </p>
               </div>
@@ -619,7 +627,7 @@ export function ActivityDetail() {
       )}
       {tab === 'Виконання' && (
         <Panel title="Результат виконання">
-          {canEdit && !a.archived ? (
+          {(canEdit || canDecide) && !a.archived ? (
             <ProgressForm activity={a} onSaved={reload} />
           ) : (
             <>
@@ -653,7 +661,7 @@ export function ActivityDetail() {
       )}
       {tab === 'Підтвердні матеріали' && (
         <Panel title="Версії документів">
-          {canEdit && !a.archived && <UploadForm activityId={a.id} onSaved={reload} />}
+          {canEdit && !a.archived && !frozen && <UploadForm activityId={a.id} onSaved={reload} />}
           <EvidenceTable items={a.evidence} />
         </Panel>
       )}
@@ -678,6 +686,24 @@ export function ActivityDetail() {
           <ErrorBox message={history.error} />
         </Panel>
       )}
+      <Panel title="Рішення керівника для звіту">
+        {(history.data ?? [])
+          .filter((entry) =>
+            ['Схвалено керівником', 'Не схвалено керівником'].includes(entry.action),
+          )
+          .map((entry) => (
+            <article key={entry.id}>
+              <strong>{entry.action}</strong>
+              <p>
+                {entry.userName} · {stamp(entry.createdAt)}
+              </p>
+              <p>{JSON.parse(entry.after).decisionNote}</p>
+            </article>
+          ))}
+        {!(history.data ?? []).some((entry) =>
+          ['Схвалено керівником', 'Не схвалено керівником'].includes(entry.action),
+        ) && <p>Керівник ще не ухвалив рішення. Координатор має передати результат на розгляд.</p>}
+      </Panel>
       {editing && (
         <ActivityForm
           activity={a}
@@ -708,6 +734,11 @@ function ProgressForm({ activity: a, onSaved }: { activity: Activity; onSaved: (
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [file, setFile] = useState<File>();
+  const reviewing = user.role === 'MANAGER';
+  const locked =
+    reviewing ||
+    ['MANAGER_REVIEW', 'COMPLETED'].includes(a.status) ||
+    (user.role === 'EXECUTOR' && a.status === 'REVIEW');
   return (
     <Form
       onSubmit={async (e) => {
@@ -751,7 +782,7 @@ function ProgressForm({ activity: a, onSaved }: { activity: Activity; onSaved: (
         <Field label="Фактична дата виконання">
           <input
             name="actualDate"
-            readOnly={user.role === 'EXECUTOR' && a.status === 'REVIEW'}
+            readOnly={locked}
             type="date"
             defaultValue={a.actualDate?.slice(0, 10)}
             max={todayKey()}
@@ -761,7 +792,7 @@ function ProgressForm({ activity: a, onSaved }: { activity: Activity; onSaved: (
       <Field label="Опис результату або причини невиконання">
         <textarea
           name="result"
-          readOnly={user.role === 'EXECUTOR' && a.status === 'REVIEW'}
+          readOnly={locked}
           rows={4}
           defaultValue={a.result}
           maxLength={10000}
@@ -770,25 +801,34 @@ function ProgressForm({ activity: a, onSaved }: { activity: Activity; onSaved: (
       <Field label={`${a.indicator} · ціль ${a.target}`}>
         <input
           name="current"
-          readOnly={user.role === 'EXECUTOR' && a.status === 'REVIEW'}
+          readOnly={locked}
           type="number"
           step="any"
           defaultValue={a.current ?? ''}
         />
       </Field>
-      <Field label="Коментар / зауваження координатора">
-        <textarea name="comment" rows={2} />
+      <Field
+        label={
+          reviewing
+            ? 'Обґрунтування рішення керівника (для звіту)'
+            : 'Коментар / зауваження координатора'
+        }
+      >
+        <textarea name="comment" rows={2} required={reviewing} />
       </Field>
-      <Field label="Підтвердний документ (за потреби)">
-        <FileInput
-          accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg"
-          onChange={(e) => setFile(e.target.files?.[0])}
-        />
-      </Field>
+      {!locked && (
+        <Field label="Підтвердний документ (за потреби)">
+          <FileInput
+            accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg"
+            onChange={(e) => setFile(e.target.files?.[0])}
+          />
+        </Field>
+      )}
       <p className="muted">
-        Виконавець подає результат на погодження. Статус «Виконано» встановлює координатор.
-        Завантажений документ зберігається окремою версією, навіть якщо подальше збереження
-        результату не пройде перевірку.
+        Виконавець подає результат координатору. Координатор перевіряє документи та передає
+        керівнику. Керівник схвалює виконання або повертає на доопрацювання з поясненням. Рішення
+        входить до звіту. Завантажений документ зберігається окремою версією, навіть якщо подальше
+        збереження результату не пройде перевірку.
       </p>
       <div className="form-actions">
         {canTransition(user.role, a.status, a.status) && (
@@ -804,8 +844,9 @@ function ProgressForm({ activity: a, onSaved }: { activity: Activity; onSaved: (
         {Object.entries({
           IN_PROGRESS: a.status === 'REVIEW' ? 'Відкликати з погодження' : 'Розпочати виконання',
           REVIEW: 'Надіслати на погодження',
-          COMPLETED: 'Погодити виконання',
-          REVISION: 'Повернути на доопрацювання',
+          MANAGER_REVIEW: 'Передати керівнику',
+          COMPLETED: 'Схвалено',
+          REVISION: reviewing ? 'Не схвалено — на доопрацювання' : 'Повернути на доопрацювання',
         })
           .filter(([status]) => status !== a.status && canTransition(user.role, a.status, status))
           .map(([status, label]) => (

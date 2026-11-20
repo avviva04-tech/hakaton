@@ -281,6 +281,7 @@ export function CalendarPage() {
   );
 }
 type ReportRow = {
+  managerDecisions: string;
   section: string;
   sectionName: string;
   code: string;
@@ -351,6 +352,7 @@ export function ReportsPage() {
                     <th>Фактичний строк</th>
                     <th>Стан виконання</th>
                     <th>Результат / причини невиконання</th>
+                    <th>Рішення керівника: автор, дата, обґрунтування</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -367,6 +369,7 @@ export function ReportsPage() {
                         <td>{r.actualDate}</td>
                         <td>{r.status}</td>
                         <td>{r.result}</td>
+                        <td style={{ whiteSpace: 'pre-line' }}>{r.managerDecisions}</td>
                       </tr>
                     ))}
                 </tbody>

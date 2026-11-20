@@ -27,7 +27,7 @@ export function analyze(a: Input, now = new Date(), staleDays = 30): Finding[] {
       'Запросити пояснення та оновлений план виконання.',
       'CRITICAL',
     );
-  if (['COMPLETED', 'REVIEW'].includes(a.status) && !a.evidence.length)
+  if (['COMPLETED', 'REVIEW', 'MANAGER_REVIEW'].includes(a.status) && !a.evidence.length)
     add(
       'NO_EVIDENCE',
       'Відсутні підтвердні матеріали',

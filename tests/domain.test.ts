@@ -157,17 +157,26 @@ test('Матриця переходів усіх ролей', () => {
     COORDINATOR: [
       'NOT_STARTED:IN_PROGRESS',
       'IN_PROGRESS:NOT_STARTED',
-      'REVIEW:COMPLETED',
+      'REVIEW:MANAGER_REVIEW',
       'REVIEW:REVISION',
       'COMPLETED:REVISION',
     ],
+    MANAGER: ['MANAGER_REVIEW:COMPLETED', 'MANAGER_REVIEW:REVISION'],
   };
   for (const role of ['EXECUTOR', 'COORDINATOR', 'ADMIN', 'MANAGER', 'ANALYST']) {
-    for (const from of ['NOT_STARTED', 'IN_PROGRESS', 'REVIEW', 'REVISION', 'COMPLETED']) {
+    for (const from of [
+      'NOT_STARTED',
+      'IN_PROGRESS',
+      'REVIEW',
+      'MANAGER_REVIEW',
+      'REVISION',
+      'COMPLETED',
+    ]) {
       for (const to of [
         'NOT_STARTED',
         'IN_PROGRESS',
         'REVIEW',
+        'MANAGER_REVIEW',
         'REVISION',
         'COMPLETED',
         'OVERDUE',

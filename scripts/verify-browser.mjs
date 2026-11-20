@@ -32,7 +32,12 @@ try {
     scenario: 'Українська валідація за російської локалі браузера',
     result: 'успішно',
   });
-  await page.goto(base + '/activities/activity-1');
+  const uploadActivities = await (
+    await context.request.get(base + '/api/activities?pageSize=100')
+  ).json();
+  const uploadActivity = uploadActivities.items.find((item) => item.status === 'IN_PROGRESS');
+  assert.ok(uploadActivity);
+  await page.goto(base + '/activities/' + uploadActivity.id);
   await page.getByRole('button', { name: 'Підтвердні матеріали', exact: true }).click();
   await page.getByRole('button', { name: 'Обрати файл', exact: true }).waitFor();
   await page.getByText('Файл не вибрано', { exact: true }).waitFor();
@@ -81,6 +86,51 @@ try {
   await page.getByRole('button', { name: 'Надіслати на погодження', exact: true }).waitFor();
   results.push({
     scenario: 'Збереження роботи виконавця змінює статус на «У процесі»',
+    result: 'успішно',
+  });
+  await page
+    .locator('input[name=actualDate]')
+    .fill(new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv' }).format(new Date()));
+  await page.locator('input[name=current]').fill(String(draft.target));
+  await page
+    .locator('input[type=file]')
+    .setInputFiles({
+      name: 'Результат.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9ZkAAAAASUVORK5CYII=',
+        'base64',
+      ),
+    });
+  async function submitDecision(label, status) {
+    const response = page.waitForResponse(
+      (r) => r.url().endsWith('/progress') && r.request().method() === 'POST',
+    );
+    await page.getByRole('button', { name: label, exact: true }).click();
+    const result = await response;
+    assert.equal(result.status(), 200, await result.text());
+    assert.equal((await result.json()).status, status);
+  }
+  await submitDecision('Надіслати на погодження', 'REVIEW');
+  await context.request.post(base + '/api/auth/demo', { data: { userId: 'user-2' } });
+  await page.goto(base + '/activities/' + draft.id);
+  await page.getByRole('button', { name: 'Перевірити та погодити результат', exact: true }).click();
+  await submitDecision('Передати керівнику', 'MANAGER_REVIEW');
+  await context.request.post(base + '/api/auth/demo', { data: { userId: 'user-3' } });
+  await page.goto(base + '/activities/' + draft.id);
+  await page.getByRole('button', { name: 'Ухвалити рішення', exact: true }).click();
+  await page
+    .locator('textarea[name=comment]')
+    .fill('Перевірено керівником для звіту вищому керівництву.');
+  await submitDecision('Схвалено', 'COMPLETED');
+  await page.getByText('Схвалено керівником', { exact: true }).waitFor();
+  await page.goto(base + '/reports');
+  await page
+    .getByRole('cell')
+    .filter({ hasText: 'Перевірено керівником для звіту вищому керівництву.' })
+    .waitFor();
+  results.push({
+    scenario: 'Виконавець → координатор → рішення керівника → звіт',
     result: 'успішно',
   });
   await context.request.post(base + '/api/auth/demo', { data: { userId: 'user-2' } });

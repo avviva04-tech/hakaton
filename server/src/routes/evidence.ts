@@ -18,6 +18,11 @@ evidenceRouter.post('/evidence', upload.single('file'), async (req, res) => {
   const a = await db.activity.findUniqueOrThrow({ where: { id: id(req.body.activityId) } });
   if (!canEdit(req, a) || a.archived)
     return fail(403, 'Немає прав на завантаження до цього заходу.');
+  if (['MANAGER_REVIEW', 'COMPLETED'].includes(a.status))
+    return fail(
+      409,
+      'Документи зафіксовано для рішення керівника. Спочатку поверніть результат на доопрацювання.',
+    );
   if (!req.file) return fail(400, 'Оберіть документ.');
   const detected = await fileTypeFromBuffer(req.file.buffer);
   const ext = req.file.originalname.split('.').pop()?.toLowerCase();
