@@ -22,6 +22,9 @@ jobs:
       - name: Установить зависимости
         run: npm ci
 
+      - name: Перевірити форматування
+        run: npm run format:check
+
       - name: Подготовить тестовую базу
         run: npm run setup
 
