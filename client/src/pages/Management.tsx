@@ -1,3 +1,4 @@
+import { Form } from '../components/forms';
 import { displayStatus, isOverdue, todayKey, dayKey } from '../../../shared/dates';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -505,7 +506,7 @@ function UserForm({
   const [busy, setBusy] = useState(false);
   return (
     <Modal title={user ? 'Редагувати користувача' : 'Додати користувача'} onClose={onClose}>
-      <form
+      <Form
         onSubmit={async (e) => {
           e.preventDefault();
           const f = new FormData(e.currentTarget);
@@ -568,7 +569,7 @@ function UserForm({
           Активний обліковий запис
         </label>
         <button disabled={busy}>Зберегти користувача</button>
-      </form>
+      </Form>
     </Modal>
   );
 }
@@ -635,7 +636,7 @@ function ProgramForm({
   const [error, setError] = useState('');
   return (
     <Modal title="Параметри програми" onClose={onClose}>
-      <form
+      <Form
         onSubmit={async (e) => {
           e.preventDefault();
           const f = new FormData(e.currentTarget);
@@ -675,7 +676,7 @@ function ProgramForm({
           Архівна програма
         </label>
         <button>Зберегти програму</button>
-      </form>
+      </Form>
     </Modal>
   );
 }
@@ -696,7 +697,7 @@ export function SettingsPage({ onReset }: { onReset: () => void }) {
       <div className="two-columns">
         <Panel title="Правила моніторингу">
           {result.data && (
-            <form
+            <Form
               onSubmit={async (e) => {
                 e.preventDefault();
                 try {
@@ -725,7 +726,7 @@ export function SettingsPage({ onReset }: { onReset: () => void }) {
                 необхідність актуалізації.
               </p>
               <button>Зберегти налаштування</button>
-            </form>
+            </Form>
           )}
         </Panel>
         <Panel title="Демонстраційні дані">
@@ -747,7 +748,7 @@ export function SettingsPage({ onReset }: { onReset: () => void }) {
       {reset && (
         <Modal title="Скинути демонстраційні дані?" onClose={() => setReset(false)}>
           <p>Для підтвердження введіть СКИНУТИ. Сесії буде завершено.</p>
-          <form
+          <Form
             onSubmit={async (e) => {
               e.preventDefault();
               const confirm = new FormData(e.currentTarget).get('confirm');
@@ -769,7 +770,7 @@ export function SettingsPage({ onReset }: { onReset: () => void }) {
             <button className="danger" disabled={busy}>
               {busy ? 'Відновлення…' : 'Скинути дані'}
             </button>
-          </form>
+          </Form>
         </Modal>
       )}
     </>

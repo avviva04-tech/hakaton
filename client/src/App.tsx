@@ -1,3 +1,4 @@
+import { Form } from './components/forms';
 import { createContext, useContext, useEffect, useState } from 'react';
 import { Routes, Route, NavLink, Navigate, useNavigate, Link } from 'react-router-dom';
 import {
@@ -144,31 +145,37 @@ function Login({ onLogin }: { onLogin: (u: Viewer) => void }) {
       <div className="login-card">
         <div className="eyebrow">Робочий простір</div>
         <h2>Вхід до системи</h2>
-        <p>Оберіть демонстраційну роль або увійдіть зі своїм обліковим записом.</p>
+        <p>
+          {data?.enabled
+            ? 'Оберіть демонстраційну роль. Пароль не потрібен.'
+            : 'Увійдіть зі своїм обліковим записом.'}
+        </p>
         <ErrorBox message={error} />
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            const form = new FormData(e.currentTarget);
-            void login({ email: form.get('email'), password: form.get('password') });
-          }}
-        >
-          <Field label="Електронна пошта">
-            <input
-              name="email"
-              type="email"
-              autoComplete="username"
-              placeholder="coordinator@demo.local"
-              required
-            />
-          </Field>
-          <Field label="Пароль">
-            <input name="password" type="password" autoComplete="current-password" required />
-          </Field>
-          <button className="full" disabled={busy}>
-            Увійти <ArrowUpRight size={18} />
-          </button>
-        </form>
+        {data && !data.enabled && (
+          <Form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const form = new FormData(e.currentTarget);
+              void login({ email: form.get('email'), password: form.get('password') });
+            }}
+          >
+            <Field label="Електронна пошта">
+              <input
+                name="email"
+                type="email"
+                autoComplete="username"
+                placeholder="coordinator@demo.local"
+                required
+              />
+            </Field>
+            <Field label="Пароль">
+              <input name="password" type="password" autoComplete="current-password" required />
+            </Field>
+            <button className="full" disabled={busy}>
+              Увійти <ArrowUpRight size={18} />
+            </button>
+          </Form>
+        )}
         {data?.enabled && (
           <>
             <div className="divider">Демонстраційний доступ</div>
@@ -425,7 +432,7 @@ function Shell({
             <Loading />
           )}
           <footer>
-            Digital Anti-Corruption Monitor <span>Синтетичні дані · Демонстраційне середовище</span>
+            Монітор доброчесності <span>Синтетичні дані · Демонстраційне середовище</span>
           </footer>
         </main>
       </div>

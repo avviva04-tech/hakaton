@@ -1,7 +1,6 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { resolve, join } from 'node:path';
 import { mkdirSync, mkdtempSync } from 'node:fs';
-import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:net';
 
 export async function testEnvironment() {
@@ -17,7 +16,6 @@ export async function testEnvironment() {
     PORT: String(port),
     DEMO_MODE: 'true',
     COOKIE_SECURE: 'false',
-    DEMO_PASSWORD: randomBytes(24).toString('base64url'),
     STORAGE_ROOT: join(directory, 'evidence'),
     TEST_URL: `http://127.0.0.1:${port}`,
   };

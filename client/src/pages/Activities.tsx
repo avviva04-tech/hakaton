@@ -1,3 +1,4 @@
+import { Form, FileInput } from '../components/forms';
 import { displayStatus, isOverdue, todayKey, dayKey } from '../../../shared/dates';
 import { useState, useEffect } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
@@ -379,7 +380,7 @@ function ActivityForm({
   });
   return (
     <Modal title={activity ? 'Редагувати захід' : 'Новий захід програми'} onClose={onClose}>
-      <form
+      <Form
         onSubmit={handleSubmit(async (values) => {
           setError('');
           try {
@@ -478,7 +479,7 @@ function ActivityForm({
           </button>
           <button disabled={isSubmitting}>Зберегти захід</button>
         </div>
-      </form>
+      </Form>
     </Modal>
   );
 }
@@ -701,7 +702,7 @@ function ProgressForm({ activity: a, onSaved }: { activity: Activity; onSaved: (
   const [busy, setBusy] = useState(false);
   const [file, setFile] = useState<File>();
   return (
-    <form
+    <Form
       onSubmit={async (e) => {
         e.preventDefault();
         const f = new FormData(e.currentTarget);
@@ -790,7 +791,7 @@ function ProgressForm({ activity: a, onSaved }: { activity: Activity; onSaved: (
       <button disabled={busy || (user.role === 'EXECUTOR' && a.status === 'COMPLETED')}>
         {busy ? 'Збереження…' : 'Зберегти результат'}
       </button>
-    </form>
+    </Form>
   );
 }
 export function UploadForm({ activityId, onSaved }: { activityId: string; onSaved: () => void }) {
@@ -798,7 +799,7 @@ export function UploadForm({ activityId, onSaved }: { activityId: string; onSave
   const [busy, setBusy] = useState(false);
   const { notify } = useApp();
   return (
-    <form
+    <Form
       className="upload-form"
       onSubmit={async (e) => {
         e.preventDefault();
@@ -823,17 +824,17 @@ export function UploadForm({ activityId, onSaved }: { activityId: string; onSave
       <div>
         <strong>Додайте підтвердження результату</strong>
         <p>PDF, DOCX, XLSX, PNG, JPG · до 10 МБ. Однакова назва створює нову версію.</p>
-        <input
+        <FileInput
           required
           aria-label="Підтвердний документ"
-          type="file"
+
           name="file"
           accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg"
         />
       </div>
       <button disabled={busy}>Завантажити</button>
       <ErrorBox message={error} />
-    </form>
+    </Form>
   );
 }
 export function EvidenceTable({ items }: { items: Evidence[] }) {
@@ -891,7 +892,7 @@ export function EvidenceTable({ items }: { items: Evidence[] }) {
 function CommentForm({ activityId, onSaved }: { activityId: string; onSaved: () => void }) {
   const [error, setError] = useState('');
   return (
-    <form
+    <Form
       onSubmit={async (e) => {
         e.preventDefault();
         const form = e.currentTarget;
@@ -912,7 +913,7 @@ function CommentForm({ activityId, onSaved }: { activityId: string; onSaved: () 
       </Field>
       <ErrorBox message={error} />
       <button>Додати коментар</button>
-    </form>
+    </Form>
   );
 }
 export function AuditTable({ items }: { items: Audit[] }) {

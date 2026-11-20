@@ -15,31 +15,20 @@ async function request(path: string, cookie = '', method = 'GET', body?: unknown
     body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body),
   });
 }
-async function login(email: string) {
-  const response = await request('/auth/login', '', 'POST', {
-    email,
-    password: process.env.DEMO_PASSWORD,
-  });
+async function login(userId: string) {
+  const response = await request('/auth/demo', '', 'POST', { userId });
   assert.equal(response.status, 200);
   return response.headers.get('set-cookie')!.split(';')[0];
 }
 test('Наскрізний цикл: авторизація, права, захід, документи, ризики, звіти, аудит', async () => {
   assert.equal((await request('/health')).status, 200);
   assert.equal((await request('/activities')).status, 401);
-  assert.equal(
-    (
-      await request('/auth/login', '', 'POST', {
-        email: 'coordinator@demo.local',
-        password: 'wrong',
-      })
-    ).status,
-    401,
-  );
-  const coordinator = await login('coordinator@demo.local');
-  const executor = await login('executor1@demo.local');
-  const manager = await login('manager@demo.local');
-  const analyst = await login('analyst@demo.local');
-  const admin = await login('admin@demo.local');
+  assert.equal((await request('/auth/demo', '', 'POST', { userId: 'missing-user' })).status, 404);
+  const coordinator = await login('user-2');
+  const executor = await login('user-5');
+  const manager = await login('user-3');
+  const analyst = await login('user-4');
+  const admin = await login('user-1');
   const demo = await (await request('/auth/demo')).json();
   assert.equal(demo.users.length, 12);
   for (const user of demo.users) assert.deepEqual(Object.keys(user).sort(), ['id', 'name', 'role']);

@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import bcrypt from 'bcryptjs';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { db } from '../server/src/database/db.ts';
 import { departments } from '../shared/domain.ts';
@@ -58,7 +58,9 @@ const titles = [
 export async function seed(reset = false) {
   const existing = !reset && (await db.user.count()) > 0;
   if (existing && process.env.SYNC_DEMO_PASSWORD !== 'true') return;
-  const password = process.env.DEMO_PASSWORD;
+  const password =
+    process.env.DEMO_PASSWORD ||
+    (process.env.DEMO_MODE === 'true' ? randomBytes(32).toString('base64url') : undefined);
   if (!password) throw new Error('Задайте DEMO_PASSWORD або виконайте npm run setup.');
   const hash = await bcrypt.hash(password, 12);
   if (existing) {

@@ -1,3 +1,4 @@
+import { Form } from '../components/forms';
 import { useState } from 'react';
 import { displayStatus } from '../../../shared/dates';
 import { Link } from 'react-router-dom';
@@ -199,7 +200,7 @@ function RiskForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => vo
   const [busy, setBusy] = useState(false);
   return (
     <Modal title="Новий корупційний ризик" onClose={onClose}>
-      <form
+      <Form
         onSubmit={async (e) => {
           e.preventDefault();
           const f = new FormData(e.currentTarget);
@@ -254,7 +255,7 @@ function RiskForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => vo
           </Field>
         </div>
         <button disabled={busy}>Зберегти ризик</button>
-      </form>
+      </Form>
     </Modal>
   );
 }
@@ -262,7 +263,7 @@ function MeasurementForm({ risk, onSaved }: { risk: Risk; onSaved: () => void })
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   return (
-    <form
+    <Form
       className="measurement-form"
       onSubmit={async (e) => {
         e.preventDefault();
@@ -290,7 +291,7 @@ function MeasurementForm({ risk, onSaved }: { risk: Risk; onSaved: () => void })
         <textarea name="note" minLength={5} required />
       </Field>
       <button disabled={busy}>Зберегти вимірювання</button>
-    </form>
+    </Form>
   );
 }
 export function FlagsPage() {

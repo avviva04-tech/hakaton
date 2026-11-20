@@ -2130,3 +2130,14 @@ option {
     transition: none !important;
   }
 }
+
+.file-picker {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.file-picker > span {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
