@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 $portable = Join-Path $PSScriptRoot '.tools/node-v24.11.1-win-x64'
 if (Test-Path "$portable/node.exe") { $env:Path = "$portable;$env:Path" }
