@@ -8,7 +8,24 @@ import { ZodError } from 'zod';
 import { Prisma } from '@prisma/client';
 import { api } from './routes/api.ts';
 import { refreshAnalysis } from './services/analyzer.ts';
+import { db } from './database/db.ts';
 const app = express();
+const port = Number(process.env.PORT || 3000);
+const allowedHosts = new Set([
+  `localhost:${port}`,
+  `127.0.0.1:${port}`,
+  ...(process.env.ALLOWED_HOSTS ?? '')
+    .split(',')
+    .map((host) => host.trim().toLowerCase())
+    .filter(Boolean),
+]);
+app.use((req, res, next) => {
+  if (!allowedHosts.has((req.headers.host ?? '').toLowerCase())) {
+    res.status(403).json({ error: 'Неприпустимий заголовок Host.' });
+    return;
+  }
+  next();
+});
 app.disable('x-powered-by');
 app.use(
   helmet({
@@ -74,7 +91,11 @@ app.use(
     });
   },
 );
-const port = Number(process.env.PORT ?? 3000);
+await db.$transaction([
+  db.activity.updateMany({ where: { status: 'OVERDUE' }, data: { status: 'IN_PROGRESS' } }),
+  db.activity.updateMany({ where: { status: 'NOT_DUE' }, data: { status: 'NOT_STARTED' } }),
+]);
+await refreshAnalysis();
 app
   .listen(port, '127.0.0.1', () => console.log(`Монітор доброчесності: http://localhost:${port}`))
   .on('error', (error) => {

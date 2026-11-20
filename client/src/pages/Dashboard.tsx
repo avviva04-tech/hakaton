@@ -1,3 +1,4 @@
+import { displayStatus, isOverdue, todayKey, dayKey } from '../../../shared/dates';
 import { Link } from 'react-router-dom';
 import {
   ArrowUpRight,
@@ -287,10 +288,13 @@ export function DashboardPage() {
           </div>
           {d.deadlines.map((a) => (
             <Link className="deadline-row" to={`/activities/${a.id}`} key={a.id}>
-              <div className={`date-box ${new Date(a.deadline) < new Date() ? 'late' : ''}`}>
-                <strong>{new Date(a.deadline).getDate()}</strong>
+              <div className={`date-box ${isOverdue(a.deadline, a.status) ? 'late' : ''}`}>
+                <strong>{Number(dayKey(a.deadline).slice(-2))}</strong>
                 <small>
-                  {new Date(a.deadline).toLocaleDateString('uk-UA', { month: 'short' })}
+                  {new Date(a.deadline).toLocaleDateString('uk-UA', {
+                    month: 'short',
+                    timeZone: 'Europe/Kyiv',
+                  })}
                 </small>
               </div>
               <div>
@@ -351,7 +355,7 @@ export function DashboardPage() {
             <ResponsiveContainer>
               <BarChart data={d.risks.slice(0, 5)}>
                 <CartesianGrid stroke="#263249" vertical={false} />
-                <XAxis dataKey="code" stroke="#8391a9" fontSize={10} />
+                <XAxis dataKey="code" stroke="#a3b2c9" fontSize={12} />
                 <YAxis stroke="#8391a9" width={30} />
                 <Tooltip contentStyle={tooltipStyle} />
                 <Bar dataKey="baseline" name="Початкове" fill="#405473" radius={[4, 4, 0, 0]} />

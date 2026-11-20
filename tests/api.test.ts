@@ -1,5 +1,9 @@
+import 'dotenv/config';
+import { todayKey } from '../shared/dates.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { request as httpRequest } from 'node:http';
+import { db } from '../server/src/database/db.ts';
 const base = process.env.TEST_URL ?? 'http://localhost:3000';
 async function request(path: string, cookie = '', method = 'GET', body?: unknown) {
   return fetch(`${base}/api${path}`, {
@@ -12,7 +16,10 @@ async function request(path: string, cookie = '', method = 'GET', body?: unknown
   });
 }
 async function login(email: string) {
-  const response = await request('/auth/login', '', 'POST', { email, password: 'Demo2026!' });
+  const response = await request('/auth/login', '', 'POST', {
+    email,
+    password: process.env.DEMO_PASSWORD,
+  });
   assert.equal(response.status, 200);
   return response.headers.get('set-cookie')!.split(';')[0];
 }
@@ -33,13 +40,81 @@ test('Наскрізний цикл: авторизація, права, зах�
   const manager = await login('manager@demo.local');
   const analyst = await login('analyst@demo.local');
   const admin = await login('admin@demo.local');
+  const demo = await (await request('/auth/demo')).json();
+  assert.equal(demo.users.length, 12);
+  for (const user of demo.users) assert.deepEqual(Object.keys(user).sort(), ['id', 'name', 'role']);
+  const reboundStatus = await new Promise<number | undefined>((resolve, reject) => {
+    const req = httpRequest(
+      `${base}/api/health`,
+      { headers: { Host: 'attacker.invalid' } },
+      (res) => {
+        res.resume();
+        resolve(res.statusCode);
+      },
+    );
+    req.on('error', reject);
+    req.end();
+  });
+  assert.equal(reboundStatus, 403);
+  const roleCookies = {
+    ADMIN: admin,
+    COORDINATOR: coordinator,
+    EXECUTOR: executor,
+    MANAGER: manager,
+    ANALYST: analyst,
+  };
+  const flagsForMatrix = await (await request('/flags', admin)).json();
+  const recsForMatrix = await (await request('/recommendations', admin)).json();
+  for (const [role, cookie] of Object.entries(roleCookies)) {
+    const users = await (await request('/users', cookie)).json();
+    assert.equal('email' in users[0], ['ADMIN', 'COORDINATOR'].includes(role));
+    assert.equal((await request('/settings', cookie)).status, role === 'ADMIN' ? 200 : 403);
+    assert.equal(
+      (await request('/audit?objectId=user-1', cookie)).status,
+      role === 'ADMIN' ? 200 : 403,
+    );
+    assert.equal((await request('/audit?objectId=activity-1', cookie)).status, 200);
+    assert.equal(
+      (await request('/activities', cookie, 'POST', {})).status,
+      ['ADMIN', 'COORDINATOR'].includes(role) ? 400 : 403,
+    );
+    assert.equal(
+      (await request('/reports?programId=program-demo&year=2026&half=2', cookie)).status,
+      role === 'EXECUTOR' ? 403 : 200,
+    );
+    const decision = ['ADMIN', 'COORDINATOR', 'MANAGER'].includes(role);
+    assert.equal(
+      (await request(`/flags/${flagsForMatrix[0].id}`, cookie, 'PATCH', { status: 'OPEN' })).status,
+      decision ? 200 : 403,
+    );
+    assert.equal(
+      (
+        await request(`/recommendations/${recsForMatrix[0].id}`, cookie, 'PATCH', {
+          status: 'DEFERRED',
+        })
+      ).status,
+      decision ? 200 : 403,
+    );
+  }
   assert.equal((await request('/settings', manager)).status, 403);
   assert.equal((await request('/audit', executor)).status, 403);
   assert.equal((await request('/activities/activity-2', executor)).status, 403);
   assert.equal((await request('/users/user-1', coordinator, 'PATCH', {})).status, 403);
   assert.equal((await request('/activities', analyst, 'POST', {})).status, 403);
   const before = await (await request('/dashboard?programId=program-demo', coordinator)).json();
-  const today = new Date().toISOString().slice(0, 10);
+  const snapshot = await db.riskFlag.findMany({ orderBy: { id: 'asc' } });
+  for (const route of [
+    '/activities',
+    '/flags',
+    '/recommendations',
+    '/notifications',
+    '/dashboard',
+    '/calendar',
+  ]) {
+    assert.equal((await request(route, coordinator)).status, 200);
+  }
+  assert.deepEqual(await db.riskFlag.findMany({ orderBy: { id: 'asc' } }), snapshot);
+  const today = todayKey();
   const data = {
     title: 'Тест повного циклу виконання',
     description: 'Перевірка створення та погодження результату',
@@ -81,6 +156,16 @@ test('Наскрізний цикл: авторизація, права, зах�
       actualDate: today,
       comment: 'Готово до погодження',
     };
+    for (const [role, cookie] of Object.entries(roleCookies)) {
+      for (const status of ['OVERDUE', 'NOT_DUE', 'COMPLETED']) {
+        assert.equal(
+          (await request(`/activities/${a.id}/progress`, cookie, 'POST', { ...progress, status }))
+            .status,
+          403,
+          `${role} → ${status}`,
+        );
+      }
+    }
     assert.equal(
       (
         await request(`/activities/${a.id}/progress`, executor, 'POST', {
@@ -93,6 +178,25 @@ test('Наскрізний цикл: авторизація, права, зах�
     assert.equal(
       (await request(`/activities/${a.id}/progress`, executor, 'POST', progress)).status,
       200,
+    );
+    assert.equal(
+      (await request(`/activities/${a.id}/progress`, executor, 'POST', progress)).status,
+      403,
+    );
+    assert.equal(
+      (
+        await request(`/activities/${a.id}/progress`, coordinator, 'POST', {
+          ...progress,
+          status: 'COMPLETED',
+        })
+      ).status,
+      400,
+    );
+    const reviewNotifications = await (await request('/notifications', coordinator)).json();
+    assert.ok(
+      reviewNotifications.some(
+        (n: { activityId: string; kind: string }) => n.activityId === a.id && n.kind === 'REVIEW',
+      ),
     );
     const badFile = new FormData();
     badFile.set('activityId', a.id);
@@ -131,7 +235,7 @@ test('Наскрізний цикл: авторизація, права, зах�
     assert.ok(
       flags.some(
         (f: { activityId: string; rule: string }) =>
-          f.activityId === a.id && f.rule === 'NO_RISK_CHANGE',
+          f.activityId === a.id && f.rule === 'RISK_REMEASURE',
       ),
     );
     assert.ok(
@@ -181,6 +285,55 @@ test('Наскрізний цикл: авторизація, права, зах�
   }
   const final = await (await request('/dashboard?programId=program-demo', coordinator)).json();
   assert.equal(final.total, before.total);
+  const repeated = await db.activity.findUniqueOrThrow({ where: { id: 'activity-1' } });
+  await db.activity.update({ where: { id: repeated.id }, data: { deadlineChanges: 2 } });
+  await request('/settings', admin, 'PATCH', { staleDays: 30 });
+  await db.riskFlag.update({
+    where: { activityId_rule: { activityId: repeated.id, rule: 'REPEATED_DELAY' } },
+    data: { status: 'ACKNOWLEDGED' },
+  });
+  await db.recommendation.update({
+    where: { activityId_rule: { activityId: repeated.id, rule: 'REPEATED_DELAY' } },
+    data: { status: 'ACCEPTED', deadline: new Date('2020-01-01') },
+  });
+  await db.activity.update({ where: { id: repeated.id }, data: { deadlineChanges: 0 } });
+  await request('/settings', admin, 'PATCH', { staleDays: 30 });
+  await db.activity.update({ where: { id: repeated.id }, data: { deadlineChanges: 2 } });
+  await request('/settings', admin, 'PATCH', { staleDays: 30 });
+  const reactivated = await db.recommendation.findUniqueOrThrow({
+    where: { activityId_rule: { activityId: repeated.id, rule: 'REPEATED_DELAY' } },
+  });
+  assert.equal(reactivated.status, 'PENDING');
+  assert.ok(reactivated.deadline > new Date());
+  assert.equal(
+    (
+      await db.riskFlag.findUniqueOrThrow({
+        where: { activityId_rule: { activityId: repeated.id, rule: 'REPEATED_DELAY' } },
+      })
+    ).status,
+    'OPEN',
+  );
+  const noticeActivity = await db.activity.findUniqueOrThrow({ where: { id: 'activity-2' } });
+  await db.activity.update({
+    where: { id: noticeActivity.id },
+    data: { deadline: new Date(todayKey()) },
+  });
+  await request('/settings', admin, 'PATCH', { staleDays: 30 });
+  await db.notification.updateMany({
+    where: { activityId: noticeActivity.id, kind: 'DEADLINE' },
+    data: { read: true },
+  });
+  await db.activity.update({
+    where: { id: noticeActivity.id },
+    data: { deadline: new Date(Date.parse(todayKey()) - 86400000) },
+  });
+  await request('/settings', admin, 'PATCH', { staleDays: 30 });
+  const notice = await db.notification.findFirstOrThrow({
+    where: { activityId: noticeActivity.id, kind: 'DEADLINE' },
+  });
+  assert.equal(notice.read, false);
+  assert.match(notice.message, /прострочено/);
   assert.equal((await request('/auth/logout', executor, 'POST', {})).status, 200);
   assert.equal((await request('/auth/me', executor)).status, 401);
+  await db.$disconnect();
 });

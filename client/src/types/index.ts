@@ -35,7 +35,14 @@ export type Risk = {
   assessedAt: string;
   programId: string;
   measurements: { id: string; value: number; date: string; note: string; author: string }[];
-  activities: { id: string; code: string; title: string; status: Status }[];
+  activities: {
+    id: string;
+    code: string;
+    title: string;
+    status: Status;
+    startDate: string;
+    deadline: string;
+  }[];
 };
 export type Flag = {
   id: string;
@@ -119,5 +126,4 @@ export type Dashboard = {
   deadlines: Activity[];
   attentionItems: Activity[];
   risks: Risk[];
-  items: Activity[];
 };

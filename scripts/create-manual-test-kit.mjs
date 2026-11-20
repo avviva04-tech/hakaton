@@ -1,5 +1,5 @@
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
-import { createWriteStream } from 'node:fs';
+import { createWriteStream, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import PDFDocument from 'pdfkit';
@@ -7,6 +7,12 @@ import ExcelJS from 'exceljs';
 import archiver from 'archiver';
 import { fileTypeFromBuffer } from 'file-type';
 
+const font = [
+  'client/src/assets/DejaVuSans.ttf',
+  'C:/Windows/Fonts/arial.ttf',
+  '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+].find(existsSync);
+if (!font) throw new Error('Встановіть DejaVu Sans або Arial для генерації PDF.');
 const root = resolve('test-files');
 const folders = [
   '01_Червоний_рівень',
@@ -39,7 +45,7 @@ async function pdf(path, title, lines) {
     doc.on('error', reject);
   });
   doc
-    .font('C:/Windows/Fonts/arial.ttf')
+    .font(resolve(font))
     .fontSize(10)
     .fillColor('#527080')
     .text('СИНТЕТИЧНИЙ ТЕСТОВИЙ ДОКУМЕНТ • НЕ ДЛЯ ОФІЦІЙНОГО ПОДАННЯ');

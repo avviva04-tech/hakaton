@@ -1,41 +1,8 @@
-import { spawn, spawnSync } from 'node:child_process';
-import { resolve } from 'node:path';
-import { mkdirSync } from 'node:fs';
 import assert from 'node:assert/strict';
-import { createServer } from 'node:net';
-mkdirSync('.tools', { recursive: true });
-const probe = createServer();
-await new Promise((resolvePort) => probe.listen(0, '127.0.0.1', resolvePort));
-const port = probe.address().port;
-await new Promise((resolveClose) => probe.close(resolveClose));
-const base = `http://127.0.0.1:${port}`;
-const env = {
-  ...process.env,
-  DATABASE_URL: `file:${resolve('.tools/reset-test.db').replaceAll('\\', '/')}`,
-  PORT: String(port),
-  DEMO_MODE: 'true',
-};
-for (const args of [
-  ['node_modules/prisma/build/index.js', 'db', 'push', '--skip-generate'],
-  ['prisma/seed.ts'],
-]) {
-  const r = spawnSync(process.execPath, args, { env, stdio: 'inherit' });
-  if (r.status !== 0) process.exit(r.status ?? 1);
-}
-const server = spawn(process.execPath, ['server/src/index.ts', '--production'], {
-  env,
-  stdio: ['ignore', 'pipe', 'pipe'],
-});
-server.stderr.pipe(process.stderr);
-let ready;
+import { testEnvironment } from './test-environment.mjs';
+const test = await testEnvironment();
+const base = test.base;
 try {
-  await new Promise((resolveReady, reject) => {
-    ready = setTimeout(() => reject(new Error('Тестовий сервер не запустився.')), 20000);
-    server.stdout.on('data', (data) => {
-      if (data.toString().includes(`localhost:${port}`)) resolveReady();
-    });
-    server.on('exit', (code) => reject(new Error(`Сервер завершився: ${code}`)));
-  });
   const login = await fetch(`${base}/api/auth/demo`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -78,6 +45,5 @@ try {
     'Скидання перевірено: 30 заходів, 12 ризиків, 20 матеріалів; аудит збережено, стару сесію відкликано.',
   );
 } finally {
-  clearTimeout(ready);
-  server.kill();
+  await test.stop();
 }

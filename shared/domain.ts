@@ -34,6 +34,31 @@ export const departments = [
 ];
 export type Role = keyof typeof roles;
 export type Status = keyof typeof statuses;
+export const transitions: Record<string, Record<string, readonly string[]>> = {
+  EXECUTOR: {
+    NOT_STARTED: ['IN_PROGRESS', 'REVIEW'],
+    IN_PROGRESS: ['REVIEW'],
+    REVISION: ['IN_PROGRESS', 'REVIEW'],
+    REVIEW: ['IN_PROGRESS'],
+  },
+  COORDINATOR: {
+    NOT_STARTED: ['IN_PROGRESS'],
+    IN_PROGRESS: ['NOT_STARTED'],
+    REVIEW: ['COMPLETED', 'REVISION'],
+    COMPLETED: ['REVISION'],
+  },
+};
+
+export function canTransition(role: string, from: string, to: string): boolean {
+  if (['OVERDUE', 'NOT_DUE'].includes(to)) return false;
+  const effectiveRole = role === 'ADMIN' ? 'COORDINATOR' : role;
+  if (from === to) {
+    return effectiveRole === 'EXECUTOR'
+      ? ['NOT_STARTED', 'IN_PROGRESS', 'REVISION'].includes(from)
+      : effectiveRole === 'COORDINATOR' && from !== 'COMPLETED';
+  }
+  return transitions[effectiveRole]?.[from]?.includes(to) ?? false;
+}
 export type Viewer = { id: string; name: string; email: string; role: Role; department: string };
 export function reached(current: number | null, baseline: number, target: number) {
   return current !== null && (target >= baseline ? current >= target : current <= target);

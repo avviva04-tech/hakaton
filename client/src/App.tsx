@@ -239,6 +239,7 @@ function Shell({
       setProgramId(programs.data.find((p) => !p.archived)?.id ?? programs.data[0].id);
   }, [programs.data, programId]);
   const allowed = (path: string) =>
+    !(path === '/my' && user.role !== 'EXECUTOR') &&
     !(['/users', '/audit', '/settings'].includes(path) && user.role !== 'ADMIN') &&
     !(path === '/reports' && user.role === 'EXECUTOR');
   return (

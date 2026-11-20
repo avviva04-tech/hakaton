@@ -1,49 +1,31 @@
-name: Проверка проекта
-
+name: Перевірка проєкту
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
-
 jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - name: Получить код
+      - name: Отримати код
         uses: actions/checkout@v4
-
-      - name: Установить Node.js
+      - name: Встановити Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
-
-      - name: Установить зависимости
+      - name: Встановити залежності
         run: npm ci
-
+      - name: Підготувати застосунок
+        run: npm run setup
       - name: Перевірити форматування
         run: npm run format:check
-
-      - name: Подготовить тестовую базу
-        run: npm run setup
-
-      - name: Запустить сервер для API-тестов
-        run: |
-          npm run dev > /tmp/monitor-server.log 2>&1 &
-          for i in {1..30}; do
-            if curl --silent --fail http://127.0.0.1:3000/ > /dev/null; then
-              break
-            fi
-            sleep 1
-          done
-          curl --silent --fail http://127.0.0.1:3000/ > /dev/null
-
-      - name: Проверить тесты
-        run: npm test
-
-      - name: Проверить production-сборку
+      - name: Перевірити збірку
         run: npm run build
-
-      - name: Проверить зависимости
+      - name: Перевірити правила та API на тимчасовій базі
+        run: npm test
+      - name: Перевірити скидання демоданих
+        run: npm run test:reset
+      - name: Перевірити залежності
         run: npm audit --audit-level=high

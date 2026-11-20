@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { displayStatus } from '../../../shared/dates';
 import { Link } from 'react-router-dom';
 import { Plus, ArrowUpRight, Sparkles, TriangleAlert, TrendingDown, Search } from 'lucide-react';
 import {
@@ -162,7 +163,7 @@ export function RisksPage() {
           {selected.activities.map((a) => (
             <Link key={a.id} className="list-link" to={`/activities/${a.id}`}>
               {a.code} · {a.title}
-              <Badge value={a.status} />
+              <Badge value={displayStatus(a)} />
             </Link>
           ))}
           <h3>Історія вимірювань</h3>

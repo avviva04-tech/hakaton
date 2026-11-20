@@ -6,7 +6,9 @@ import { pathToFileURL } from 'node:url';
 import { db } from '../server/src/database/db.ts';
 import { departments } from '../shared/domain.ts';
 import { refreshAnalysis } from '../server/src/services/analyzer.ts';
-export const demoPassword = 'Demo2026!';
+import { todayKey } from '../shared/dates.ts';
+import { resolve } from 'node:path';
+const storageRoot = process.env.STORAGE_ROOT || 'storage/evidence';
 const riskNames = [
   'Непрозорість закупівель',
   'Конфлікт інтересів під час добору',
@@ -54,12 +56,25 @@ const titles = [
   'Перевірити виконання рекомендацій',
 ];
 export async function seed(reset = false) {
-  if (!reset && (await db.user.count())) return;
-  const hash = await bcrypt.hash(demoPassword, 12);
-  await mkdir('storage/evidence', { recursive: true });
+  const existing = !reset && (await db.user.count()) > 0;
+  if (existing && process.env.SYNC_DEMO_PASSWORD !== 'true') return;
+  const password = process.env.DEMO_PASSWORD;
+  if (!password) throw new Error('Задайте DEMO_PASSWORD або виконайте npm run setup.');
+  const hash = await bcrypt.hash(password, 12);
+  if (existing) {
+    const users = await db.user.findMany({
+      where: { email: { endsWith: '@demo.local' } },
+      select: { id: true },
+    });
+    const ids = users.filter((user) => /^user-\d+$/.test(user.id)).map((user) => user.id);
+    await db.user.updateMany({ where: { id: { in: ids } }, data: { passwordHash: hash } });
+    await db.session.deleteMany({ where: { userId: { in: ids } } });
+    return;
+  }
+  await mkdir(storageRoot, { recursive: true });
   const now = new Date();
   const year = now.getFullYear();
-  const date = (offset: number) => new Date(now.getTime() + offset * 86400000);
+  const date = (offset: number) => new Date(Date.parse(todayKey(now)) + offset * 86400000);
   await db.$transaction(
     async (tx) => {
       if (reset) {
@@ -156,7 +171,8 @@ export async function seed(reset = false) {
             riskId: `risk-${(i % 12) + 1}`,
             startDate: date(state === 'NOT_DUE' ? 15 : -90),
             deadline: date(state === 'OVERDUE' ? -12 : state === 'NOT_DUE' ? 45 : (i % 6) * 5 + 2),
-            status: state,
+            status:
+              state === 'OVERDUE' ? 'IN_PROGRESS' : state === 'NOT_DUE' ? 'NOT_STARTED' : state,
             indicator: 'Частка перевірених процедур, %',
             baseline: 0,
             target: 100,
@@ -187,7 +203,7 @@ export async function seed(reset = false) {
             'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9ZkAAAAASUVORK5CYII=',
             'base64',
           );
-          const storagePath = `storage/evidence/seed-${i}.png`;
+          const storagePath = resolve(storageRoot, `seed-${i}.png`);
           await writeFile(storagePath, buffer);
           await tx.evidence.create({
             data: {

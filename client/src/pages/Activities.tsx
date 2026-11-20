@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { displayStatus, isOverdue, todayKey, dayKey } from '../../../shared/dates';
+import { useState, useEffect } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   Plus,
@@ -18,7 +19,7 @@ import { z } from 'zod';
 import { useApp } from '../App';
 import { useData } from '../hooks/useData';
 import { api, post, patch, download } from '../services/api';
-import { statuses, sections, departments, reached } from '../../../shared/domain';
+import { statuses, sections, departments, reached, canTransition } from '../../../shared/domain';
 import type { Activity, User, Risk, Audit, Evidence, Notification } from '../types';
 import {
   Badge,
@@ -51,10 +52,18 @@ export function ActivitiesPage({ mine = false }: { mine?: boolean }) {
   });
   const [page, setPage] = useState(1);
   const [creating, setCreating] = useState(false);
+  const [search, setSearch] = useState(filters.search);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(filters.search);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [filters.search]);
   const query = new URLSearchParams({
     programId,
     page: String(page),
-    ...Object.fromEntries(Object.entries(filters).filter(([, v]) => v)),
+    ...Object.fromEntries(Object.entries({ ...filters, search }).filter(([, v]) => v)),
     ...(mine ? { executorId: user.id } : {}),
   });
   const result = useData<{ items: Activity[]; total: number; pageSize: number }>(
@@ -244,17 +253,11 @@ export function ActivitiesPage({ mine = false }: { mine?: boolean }) {
                         {a.executor.name}
                         <small>{a.department}</small>
                       </td>
-                      <td
-                        className={
-                          new Date(a.deadline) < new Date() && a.status !== 'COMPLETED'
-                            ? 'text-red'
-                            : ''
-                        }
-                      >
+                      <td className={isOverdue(a.deadline, a.status) ? 'text-red' : ''}>
                         {date(a.deadline)}
                       </td>
                       <td>
-                        <Badge value={a.status} />
+                        <Badge value={displayStatus(a)} />
                       </td>
                       <td>
                         {a.current ?? '—'} <small>ціль: {a.target}</small>
@@ -365,7 +368,7 @@ function ActivityForm({
           department: departments[0],
           executorId: '',
           riskId: '',
-          startDate: new Date().toISOString().slice(0, 10),
+          startDate: todayKey(),
           deadline: '',
           indicator: '',
           baseline: 0,
@@ -522,7 +525,7 @@ export function ActivityDetail() {
         }
       />
       <div className="detail-meta">
-        <Badge value={a.status} />
+        <Badge value={displayStatus(a)} />
         <span>{a.department}</span>
         <span>Виконавець: {a.executor.name}</span>
         <span>Строк: {date(a.deadline)}</span>
@@ -733,12 +736,7 @@ function ProgressForm({ activity: a, onSaved }: { activity: Activity; onSaved: (
         <Field label="Статус">
           <select name="status" defaultValue={a.status}>
             {Object.entries(statuses)
-              .filter(
-                ([k]) =>
-                  user.role !== 'EXECUTOR' ||
-                  !['COMPLETED', 'REVISION'].includes(k) ||
-                  k === a.status,
-              )
+              .filter(([k]) => k === a.status || canTransition(user.role, a.status, k))
               .map(([k, v]) => (
                 <option key={k} value={k}>
                   {v}
@@ -749,17 +747,30 @@ function ProgressForm({ activity: a, onSaved }: { activity: Activity; onSaved: (
         <Field label="Фактична дата виконання">
           <input
             name="actualDate"
+            readOnly={user.role === 'EXECUTOR' && a.status === 'REVIEW'}
             type="date"
             defaultValue={a.actualDate?.slice(0, 10)}
-            max={new Date().toISOString().slice(0, 10)}
+            max={todayKey()}
           />
         </Field>
       </div>
       <Field label="Опис результату або причини невиконання">
-        <textarea name="result" rows={4} defaultValue={a.result} maxLength={10000} />
+        <textarea
+          name="result"
+          readOnly={user.role === 'EXECUTOR' && a.status === 'REVIEW'}
+          rows={4}
+          defaultValue={a.result}
+          maxLength={10000}
+        />
       </Field>
       <Field label={`${a.indicator} · ціль ${a.target}`}>
-        <input name="current" type="number" step="any" defaultValue={a.current ?? ''} />
+        <input
+          name="current"
+          readOnly={user.role === 'EXECUTOR' && a.status === 'REVIEW'}
+          type="number"
+          step="any"
+          defaultValue={a.current ?? ''}
+        />
       </Field>
       <Field label="Коментар / зауваження координатора">
         <textarea name="comment" rows={2} />

@@ -1,3 +1,4 @@
+import { displayStatus } from '../../../shared/dates.ts';
 import type { Activity } from '@prisma/client';
 import { statuses, sections } from '../../../shared/domain.ts';
 export function reportRows(
@@ -21,11 +22,11 @@ export function reportRows(
           ? a.actualDate.toISOString().slice(0, 10)
           : '—',
       status:
-        a.startDate > end || (a.deadline > end && a.status === 'NOT_STARTED')
+        a.startDate > end
           ? statuses.NOT_DUE
           : a.status === 'COMPLETED' && a.actualDate && a.actualDate > end
             ? 'У процесі (на кінець періоду)'
-            : statuses[a.status as keyof typeof statuses],
+            : statuses[displayStatus(a, end.toISOString().slice(0, 10)) as keyof typeof statuses],
       result:
         a.actualDate && a.actualDate > end
           ? 'На кінець звітного періоду результат ще не зафіксовано.'

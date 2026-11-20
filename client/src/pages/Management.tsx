@@ -1,3 +1,4 @@
+import { displayStatus, isOverdue, todayKey, dayKey } from '../../../shared/dates';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -83,9 +84,9 @@ export function EvidencePage() {
 }
 export function CalendarPage() {
   const { programId } = useApp();
-  const result = useData<Dashboard>(`/dashboard?programId=${programId}`);
+  const result = useData<{ items: Activity[] }>(`/calendar?programId=${programId}`);
   const users = useData<User[]>('/users');
-  const [month, setMonth] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const [month, setMonth] = useState(new Date(todayKey().slice(0, 7) + '-01T00:00:00Z'));
   const [department, setDepartment] = useState('');
   const [executor, setExecutor] = useState('');
   const [selected, setSelected] = useState('');
@@ -96,32 +97,36 @@ export function CalendarPage() {
         (!department || a.department === department) && (!executor || a.executorId === executor),
     ) ?? [];
   const start = new Date(month);
-  start.setDate(1 - ((month.getDay() + 6) % 7));
+  start.setUTCDate(1 - ((month.getUTCDay() + 6) % 7));
   const days = Array.from(
     { length: 42 },
-    (_, i) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + i),
+    (_, i) =>
+      new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate() + i)),
   );
-  const key = (d: Date) =>
-    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  const now = new Date();
+  const key = dayKey;
+  const now = new Date(todayKey());
   const weekEnd = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate() + 7 - (now.getDay() || 7),
-    23,
-    59,
-    59,
+    Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate() + 7 - (now.getUTCDay() || 7),
+      23,
+      59,
+      59,
+    ),
   );
-  const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1),
-    nextMonthEnd = new Date(now.getFullYear(), now.getMonth() + 2, 1);
+  const nextMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)),
+    nextMonthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 2, 1));
   const visible = items
     .filter((a) => {
       const d = new Date(a.deadline);
       return (
         (!selected || key(d) === selected) &&
         (view === 'all' ||
-          (view === 'overdue' && d < now && a.status !== 'COMPLETED') ||
-          (view === 'week' && d >= now && d <= weekEnd) ||
+          (view === 'overdue' && isOverdue(a.deadline, a.status, now)) ||
+          (view === 'week' &&
+            dayKey(d) >= todayKey(now) &&
+            dayKey(d) <= weekEnd.toISOString().slice(0, 10)) ||
           (view === 'next' && d >= nextMonthStart && d < nextMonthEnd))
       );
     })
@@ -172,14 +177,16 @@ export function CalendarPage() {
             <button
               className="secondary"
               aria-label="Попередній місяць"
-              onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}
+              onClick={() =>
+                setMonth(new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth() - 1, 1)))
+              }
             >
               <ChevronLeft size={16} />
             </button>
             <button
               className="secondary"
               onClick={() => {
-                setMonth(new Date(now.getFullYear(), now.getMonth(), 1));
+                setMonth(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)));
                 setSelected('');
               }}
             >
@@ -188,7 +195,9 @@ export function CalendarPage() {
             <button
               className="secondary"
               aria-label="Наступний місяць"
-              onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}
+              onClick={() =>
+                setMonth(new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth() + 1, 1)))
+              }
             >
               <ChevronRight size={16} />
             </button>
@@ -202,14 +211,14 @@ export function CalendarPage() {
           ))}
           {days.map((d) => (
             <button
-              className={`calendar-day ${d.getMonth() !== month.getMonth() ? 'outside' : ''} ${key(d) === key(now) ? 'today' : ''} ${selected === key(d) ? 'selected' : ''}`}
+              className={`calendar-day ${d.getUTCMonth() !== month.getUTCMonth() ? 'outside' : ''} ${key(d) === key(now) ? 'today' : ''} ${selected === key(d) ? 'selected' : ''}`}
               key={key(d)}
               onClick={() => {
                 setSelected(selected === key(d) ? '' : key(d));
                 setView('all');
               }}
             >
-              <span>{d.getDate()}</span>
+              <span>{d.getUTCDate()}</span>
               {items
                 .filter((a) => key(new Date(a.deadline)) === key(d))
                 .slice(0, 2)
@@ -219,7 +228,7 @@ export function CalendarPage() {
                     className={
                       a.status === 'COMPLETED'
                         ? 'green'
-                        : new Date(a.deadline) < now
+                        : isOverdue(a.deadline, a.status, now)
                           ? 'red'
                           : 'blue'
                     }
@@ -262,7 +271,7 @@ export function CalendarPage() {
               {date(a.deadline)} · {a.title}
               <small>{a.executor.name}</small>
             </span>
-            <Badge value={a.status} />
+            <Badge value={displayStatus(a)} />
           </Link>
         ))}
         {!visible.length && <Empty />}

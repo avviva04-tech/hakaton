@@ -3,8 +3,9 @@ import type { ReactNode } from 'react';
 import { AlertCircle, X, LoaderCircle, Inbox } from 'lucide-react';
 import { statuses, priorities } from '../../../shared/domain';
 export const date = (value?: string | null) =>
-  value ? new Date(value).toLocaleDateString('uk-UA') : '—';
-export const stamp = (value: string) => new Date(value).toLocaleString('uk-UA');
+  value ? new Date(value).toLocaleDateString('uk-UA', { timeZone: 'Europe/Kyiv' }) : '—';
+export const stamp = (value: string) =>
+  new Date(value).toLocaleString('uk-UA', { timeZone: 'Europe/Kyiv' });
 export function Badge({ value }: { value: string }) {
   const labels: Record<string, string> = {
     ...statuses,

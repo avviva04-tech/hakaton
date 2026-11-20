@@ -71,6 +71,8 @@ try {
   }
   await page.goto(base);
   await page.getByRole('heading', { name: 'Прогрес реалізації' }).waitFor();
+  // Дочекатися завершення анімації графіків перед знімком для документації.
+  await page.waitForTimeout(2000);
   await page.screenshot({ path: '.tools/dashboard-verified.png', fullPage: true });
   assert.deepEqual(errors, []);
   console.log(

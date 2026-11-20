@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { analyze } from '../server/src/services/analyzer.ts';
+import { analyze, addClusters, createRefreshQueue } from '../server/src/services/analyzer.ts';
+import { dayKey, todayKey, isOverdue, displayStatus } from '../shared/dates.ts';
+import { canTransition } from '../shared/domain.ts';
 import { reportRows, csvCell } from '../server/src/services/reports.ts';
 import { reached } from '../shared/domain.ts';
 const now = new Date('2026-11-18T12:00:00Z');
@@ -43,6 +45,7 @@ const activity = {
     target: 10,
     direction: 'DOWN',
     indicator: 'Частка',
+    measurements: [{ value: 50, date: now }],
     assessedAt: now,
     programId: 'test',
   },
@@ -52,7 +55,16 @@ test('Виконання заходу не означає покращення �
     analyze(activity, now).map((f) => f.rule),
     ['NO_RISK_CHANGE'],
   );
-  assert.equal(analyze({ ...activity, risk: { ...activity.risk, current: 25 } }, now).length, 0);
+  assert.equal(
+    analyze(
+      {
+        ...activity,
+        risk: { ...activity.risk, current: 25, measurements: [{ value: 25, date: now }] },
+      },
+      now,
+    ).length,
+    0,
+  );
 });
 test('Правила виявляють прострочення, повторні перенесення та неактуальні дані', () => {
   const rules = analyze(
@@ -91,4 +103,120 @@ test('Майбутній початок відображається як стр
 test('CSV нейтралізує формули та екранує лапки', () => {
   assert.equal(csvCell('=SUM(A1)'), '"\'=SUM(A1)"');
   assert.equal(csvCell('Текст "цитата"'), '"Текст ""цитата"""');
+});
+
+test('CLUSTER не зачіпає здорові заходи та не залежить від порядку', () => {
+  const finding = analyze({ ...activity, status: 'IN_PROGRESS' }, now);
+  const entries = [
+    { a: { ...activity, id: 'a' }, findings: finding },
+    { a: { ...activity, id: 'b' }, findings: finding },
+    { a: { ...activity, id: 'healthy' }, findings: [] },
+  ];
+  for (const input of [entries, [...entries].reverse()]) {
+    assert.deepEqual(
+      addClusters(input)
+        .filter((x) => x.findings.some((f) => f.rule === 'CLUSTER'))
+        .map((x) => x.a.id)
+        .sort(),
+      ['a', 'b'],
+    );
+  }
+  assert.equal(
+    entries[0].findings.some((f) => f.rule === 'CLUSTER'),
+    false,
+  );
+});
+
+test('Строки порівнюються календарними днями Києва', () => {
+  const midnight = new Date('2026-11-19T22:30:00Z');
+  assert.equal(todayKey(midnight), '2026-11-20');
+  assert.equal(isOverdue('2026-11-20', 'IN_PROGRESS', midnight), false);
+  assert.equal(isOverdue('2026-11-19', 'IN_PROGRESS', midnight), true);
+  assert.equal(isOverdue('2026-11-19', 'COMPLETED', midnight), false);
+  assert.ok(dayKey('2026-11-20') <= todayKey(midnight));
+  assert.equal(
+    displayStatus(
+      { status: 'NOT_STARTED', startDate: '2026-11-21', deadline: '2026-11-25' },
+      midnight,
+    ),
+    'NOT_DUE',
+  );
+  assert.equal(todayKey('2026-03-28T22:30:00Z'), '2026-03-29');
+});
+
+test('Матриця переходів усіх ролей', () => {
+  const expected: Record<string, string[]> = {
+    EXECUTOR: [
+      'NOT_STARTED:IN_PROGRESS',
+      'NOT_STARTED:REVIEW',
+      'IN_PROGRESS:REVIEW',
+      'REVISION:IN_PROGRESS',
+      'REVISION:REVIEW',
+      'REVIEW:IN_PROGRESS',
+    ],
+    COORDINATOR: [
+      'NOT_STARTED:IN_PROGRESS',
+      'IN_PROGRESS:NOT_STARTED',
+      'REVIEW:COMPLETED',
+      'REVIEW:REVISION',
+      'COMPLETED:REVISION',
+    ],
+  };
+  for (const role of ['EXECUTOR', 'COORDINATOR', 'ADMIN', 'MANAGER', 'ANALYST']) {
+    for (const from of ['NOT_STARTED', 'IN_PROGRESS', 'REVIEW', 'REVISION', 'COMPLETED']) {
+      for (const to of [
+        'NOT_STARTED',
+        'IN_PROGRESS',
+        'REVIEW',
+        'REVISION',
+        'COMPLETED',
+        'OVERDUE',
+        'NOT_DUE',
+      ]) {
+        if (from === to) continue;
+        assert.equal(
+          canTransition(role, from, to),
+          (expected[role === 'ADMIN' ? 'COORDINATOR' : role] ?? []).includes(`${from}:${to}`),
+          `${role}: ${from} → ${to}`,
+        );
+      }
+    }
+  }
+  assert.equal(canTransition('EXECUTOR', 'REVIEW', 'REVIEW'), false);
+  assert.equal(canTransition('ADMIN', 'COMPLETED', 'COMPLETED'), false);
+});
+
+test('Оцінка ефекту чекає нового вимірювання та враховує історичну базу', () => {
+  const risk = { ...activity.risk, measurements: [] };
+  assert.ok(analyze({ ...activity, risk }, now).some((f) => f.rule === 'RISK_REMEASURE'));
+  const measured = {
+    ...risk,
+    measurements: [
+      { date: new Date('2025-12-01'), value: 30 },
+      { date: new Date('2026-10-02'), value: 40 },
+    ],
+  };
+  assert.ok(analyze({ ...activity, risk: measured }, now).some((f) => f.rule === 'NO_RISK_CHANGE'));
+});
+
+test('Мутація під час перерахунку очікує наступного проходу', async () => {
+  const releases: (() => void)[] = [];
+  let passes = 0;
+  const refresh = createRefreshQueue(async () => {
+    passes++;
+    await new Promise<void>((resolve) => releases.push(resolve));
+  });
+  const first = refresh();
+  const second = refresh();
+  let finished = false;
+  void second.then(() => {
+    finished = true;
+  });
+  releases.shift()!();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(passes, 2);
+  assert.equal(finished, false);
+  releases.shift()!();
+  await Promise.all([first, second]);
+  assert.equal(finished, true);
 });
