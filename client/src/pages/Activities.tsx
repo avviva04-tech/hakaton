@@ -531,6 +531,13 @@ export function ActivityDetail() {
         <span>Виконавець: {a.executor.name}</span>
         <span>Строк: {date(a.deadline)}</span>
       </div>
+      {canEdit && !a.archived && (
+        <button className="secondary" onClick={() => setTab('Виконання')}>
+          {manager && a.status === 'REVIEW'
+            ? 'Перевірити та погодити результат'
+            : 'Оновити виконання'}
+        </button>
+      )}
       <div className="tabs">
         {[
           'Основна інформація',
@@ -706,6 +713,10 @@ function ProgressForm({ activity: a, onSaved }: { activity: Activity; onSaved: (
       onSubmit={async (e) => {
         e.preventDefault();
         const f = new FormData(e.currentTarget);
+        const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+        const nextStatus =
+          submitter?.value ||
+          (user.role === 'EXECUTOR' && a.status === 'NOT_STARTED' ? 'IN_PROGRESS' : a.status);
         setBusy(true);
         setError('');
         try {
@@ -717,13 +728,13 @@ function ProgressForm({ activity: a, onSaved }: { activity: Activity; onSaved: (
             setFile(undefined);
           }
           await post(`/activities/${a.id}/progress`, {
-            status: f.get('status'),
+            status: nextStatus,
             result: f.get('result'),
             current: f.get('current') === '' ? null : Number(f.get('current')),
             actualDate: f.get('actualDate') || null,
             comment: f.get('comment'),
           });
-          notify('Результат збережено. Показники та сигнали оновлено.');
+          notify(`Результат збережено. Статус: ${statuses[nextStatus as keyof typeof statuses]}.`);
           onSaved();
         } catch (err) {
           setError((err as Error).message);
@@ -735,15 +746,7 @@ function ProgressForm({ activity: a, onSaved }: { activity: Activity; onSaved: (
       <ErrorBox message={error} />
       <div className="form-grid">
         <Field label="Статус">
-          <select name="status" defaultValue={a.status}>
-            {Object.entries(statuses)
-              .filter(([k]) => k === a.status || canTransition(user.role, a.status, k))
-              .map(([k, v]) => (
-                <option key={k} value={k}>
-                  {v}
-                </option>
-              ))}
-          </select>
+          <span>{statuses[a.status as keyof typeof statuses]}</span>
         </Field>
         <Field label="Фактична дата виконання">
           <input
@@ -777,8 +780,7 @@ function ProgressForm({ activity: a, onSaved }: { activity: Activity; onSaved: (
         <textarea name="comment" rows={2} />
       </Field>
       <Field label="Підтвердний документ (за потреби)">
-        <input
-          type="file"
+        <FileInput
           accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg"
           onChange={(e) => setFile(e.target.files?.[0])}
         />
@@ -788,9 +790,30 @@ function ProgressForm({ activity: a, onSaved }: { activity: Activity; onSaved: (
         Завантажений документ зберігається окремою версією, навіть якщо подальше збереження
         результату не пройде перевірку.
       </p>
-      <button disabled={busy || (user.role === 'EXECUTOR' && a.status === 'COMPLETED')}>
-        {busy ? 'Збереження…' : 'Зберегти результат'}
-      </button>
+      <div className="form-actions">
+        {canTransition(user.role, a.status, a.status) && (
+          <button
+            disabled={busy}
+            value={
+              user.role === 'EXECUTOR' && a.status === 'NOT_STARTED' ? 'IN_PROGRESS' : a.status
+            }
+          >
+            {busy ? 'Збереження…' : 'Зберегти роботу'}
+          </button>
+        )}
+        {Object.entries({
+          IN_PROGRESS: a.status === 'REVIEW' ? 'Відкликати з погодження' : 'Розпочати виконання',
+          REVIEW: 'Надіслати на погодження',
+          COMPLETED: 'Погодити виконання',
+          REVISION: 'Повернути на доопрацювання',
+        })
+          .filter(([status]) => status !== a.status && canTransition(user.role, a.status, status))
+          .map(([status, label]) => (
+            <button key={status} value={status} disabled={busy}>
+              {label}
+            </button>
+          ))}
+      </div>
     </Form>
   );
 }

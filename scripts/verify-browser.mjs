@@ -38,16 +38,14 @@ try {
   await page.getByText('Файл не вибрано', { exact: true }).waitFor();
   await page.getByRole('button', { name: 'Завантажити', exact: true }).click();
   await page.getByRole('alert').filter({ hasText: 'Оберіть файл для завантаження.' }).waitFor();
-  await page
-    .locator('input[type=file]')
-    .setInputFiles({
-      name: 'Перевірка.png',
-      mimeType: 'image/png',
-      buffer: Buffer.from(
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9ZkAAAAASUVORK5CYII=',
-        'base64',
-      ),
-    });
+  await page.locator('input[type=file]').setInputFiles({
+    name: 'Перевірка.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9ZkAAAAASUVORK5CYII=',
+      'base64',
+    ),
+  });
   await page.locator('.file-picker').getByText('Перевірка.png', { exact: true }).waitFor();
   const uploaded = page.waitForResponse(
     (response) =>
@@ -60,6 +58,32 @@ try {
     scenario: 'Український вибір файлу, обов’язковість, завантаження та очищення',
     result: 'успішно',
   });
+  const ownActivities = await (
+    await context.request.get(base + '/api/activities?pageSize=100')
+  ).json();
+  const draft = ownActivities.items.find(
+    (item) => item.status === 'NOT_STARTED' && new Date(item.startDate) < new Date(),
+  );
+  assert.ok(draft, 'Є нерозпочатий захід для перевірки збереження роботи');
+  await context.request.post(base + '/api/auth/demo', { data: { userId: draft.executorId } });
+  await page.goto(base + '/activities/' + draft.id);
+  await page.getByRole('button', { name: 'Оновити виконання', exact: true }).click();
+  await page.locator('textarea[name=result]').fill('Розпочато перевірку процедур.');
+  const saved = page.waitForResponse(
+    (response) => response.url().endsWith('/progress') && response.request().method() === 'POST',
+  );
+  await page.getByRole('button', { name: 'Зберегти роботу', exact: true }).click();
+  const savedResponse = await saved;
+  assert.equal(savedResponse.status(), 200);
+  assert.equal((await savedResponse.json()).status, 'IN_PROGRESS');
+  await page.reload();
+  await page.getByRole('button', { name: 'Оновити виконання', exact: true }).click();
+  await page.getByRole('button', { name: 'Надіслати на погодження', exact: true }).waitFor();
+  results.push({
+    scenario: 'Збереження роботи виконавця змінює статус на «У процесі»',
+    result: 'успішно',
+  });
+  await context.request.post(base + '/api/auth/demo', { data: { userId: 'user-2' } });
   for (const width of [1440, 1024, 768, 390]) {
     await page.setViewportSize({ width, height: 1000 });
     for (const path of ['/', '/activities', '/calendar']) {
