@@ -92,16 +92,14 @@ try {
     .locator('input[name=actualDate]')
     .fill(new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv' }).format(new Date()));
   await page.locator('input[name=current]').fill(String(draft.target));
-  await page
-    .locator('input[type=file]')
-    .setInputFiles({
-      name: 'Результат.png',
-      mimeType: 'image/png',
-      buffer: Buffer.from(
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9ZkAAAAASUVORK5CYII=',
-        'base64',
-      ),
-    });
+  await page.locator('input[type=file]').setInputFiles({
+    name: 'Результат.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9ZkAAAAASUVORK5CYII=',
+      'base64',
+    ),
+  });
   async function submitDecision(label, status) {
     const response = page.waitForResponse(
       (r) => r.url().endsWith('/progress') && r.request().method() === 'POST',
